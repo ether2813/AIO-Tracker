@@ -2,6 +2,6 @@
     <style name="Theme.AIO" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowBackground">#FF0E1513</item>
+        <item name="android:windowBackground">#FF0F1418</item>
     </style>
 </resources>
