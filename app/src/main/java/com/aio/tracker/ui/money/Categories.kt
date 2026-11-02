@@ -19,7 +19,7 @@ import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.ShoppingCart
-import androidx.compose.material.icons.rounded.ShowChart
+import androidx.compose.material.icons.automirrored.rounded.ShowChart
 import androidx.compose.material.icons.rounded.Store
 import androidx.compose.material.icons.rounded.Work
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -50,7 +50,7 @@ object Categories {
         MoneyCategory("Business", Icons.Rounded.Store),
         MoneyCategory("Freelance", Icons.Rounded.Laptop),
         MoneyCategory("Gift", Icons.Rounded.CardGiftcard),
-        MoneyCategory("Investment", Icons.Rounded.ShowChart),
+        MoneyCategory("Investment", Icons.AutoMirrored.Rounded.ShowChart),
         MoneyCategory("Refund", Icons.Rounded.Replay),
         MoneyCategory("Other", Icons.Rounded.Category),
     )

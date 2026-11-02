@@ -59,7 +59,7 @@ object Notifications {
         val text = if (prayer == Prayer.JUMUAH) "Jumu'ah prayer at $time. Time to get ready for the khutbah." else "${prayer.label} (${prayer.arabic}) at $time"
         val notification = NotificationCompat.Builder(context, CHANNEL_PRAYER)
             .setSmallIcon(R.drawable.ic_notification)
-            .setColor(0xFF0B6E5F.toInt())
+            .setColor(0xFF0A72B5.toInt())
             .setContentTitle(title)
             .setContentText(text)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)

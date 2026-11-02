@@ -3,7 +3,7 @@
 An all-in-one personal Android app for **Salat**, **workouts**, **money**, **to-dos** and **notes**, with
 optional **AI summaries from Google Gemini**. Everything is stored only on your phone.
 
-Built with Kotlin, Jetpack Compose and Material 3. It has a custom emerald and gold theme, light and dark
+Built with Kotlin, Jetpack Compose and Material 3. It has a custom sky-blue and gold theme, light and dark
 modes, and optional Material You dynamic colour.
 
 ## Features
