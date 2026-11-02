@@ -97,7 +97,7 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun export(resolver: ContentResolver, uri: Uri) = viewModelScope.launch {
+    fun exportBackup(resolver: ContentResolver, uri: Uri) = viewModelScope.launch {
         busy = true
         try {
             val n = c.backup.exportTo(resolver, uri)
@@ -109,7 +109,7 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun import(resolver: ContentResolver, uri: Uri) = viewModelScope.launch {
+    fun importBackup(resolver: ContentResolver, uri: Uri) = viewModelScope.launch {
         busy = true
         try {
             val n = c.backup.importFrom(resolver, uri)

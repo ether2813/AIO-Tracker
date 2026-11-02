@@ -123,7 +123,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) vm.export(context.contentResolver, uri)
+        if (uri != null) vm.exportBackup(context.contentResolver, uri)
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) pendingImport = uri
@@ -381,7 +381,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             "Replace all data?",
             "Importing will replace everything currently in the app with the contents of the backup file.",
             "Import",
-            onConfirm = { vm.import(context.contentResolver, uri) },
+            onConfirm = { vm.importBackup(context.contentResolver, uri) },
             onDismiss = { pendingImport = null },
         )
     }
