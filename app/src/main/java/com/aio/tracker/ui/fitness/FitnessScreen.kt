@@ -18,9 +18,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DirectionsBike
-import androidx.compose.material.icons.rounded.DirectionsRun
-import androidx.compose.material.icons.rounded.DirectionsWalk
+import androidx.compose.material.icons.automirrored.rounded.DirectionsBike
+import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
+import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
@@ -94,9 +94,9 @@ import java.time.temporal.TemporalAdjusters
 val WorkoutType.icon: ImageVector
     get() = when (this) {
         WorkoutType.STRENGTH -> Icons.Rounded.FitnessCenter
-        WorkoutType.RUN -> Icons.Rounded.DirectionsRun
-        WorkoutType.WALK -> Icons.Rounded.DirectionsWalk
-        WorkoutType.CYCLING -> Icons.Rounded.DirectionsBike
+        WorkoutType.RUN -> Icons.AutoMirrored.Rounded.DirectionsRun
+        WorkoutType.WALK -> Icons.AutoMirrored.Rounded.DirectionsWalk
+        WorkoutType.CYCLING -> Icons.AutoMirrored.Rounded.DirectionsBike
         WorkoutType.SWIM -> Icons.Rounded.Pool
         WorkoutType.CARDIO -> Icons.Rounded.Favorite
         WorkoutType.HIIT -> Icons.Rounded.Whatshot
