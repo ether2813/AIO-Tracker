@@ -277,7 +277,7 @@ private fun WorkoutCard(item: WorkoutWithExercises, onClick: () -> Unit) {
 
 private fun trimNum(v: Double): String = if (v % 1.0 == 0.0) v.toLong().toString() else v.toString()
 
-private data class ExerciseDraft(val key: Long, val name: String = "", val sets: String = "3", val reps: String = "10", val weight: String = "")
+private data class ExerciseDraft(val uid: Long, val name: String = "", val sets: String = "3", val reps: String = "10", val weight: String = "")
 
 private fun String.toPosDouble(): Double? = replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
 
@@ -300,7 +300,7 @@ private fun WorkoutEditorSheet(
     var notes by remember { mutableStateOf(w?.notes ?: "") }
     var nextKey by remember { mutableStateOf(1000L) }
     var exercises by remember {
-        mutableStateOf(
+        mutableStateOf<List<ExerciseDraft>>(
             existing?.exercises?.sortedBy { it.position }?.mapIndexed { i, e ->
                 ExerciseDraft(i.toLong(), e.name, e.sets.toString(), e.reps.toString(), e.weightKg?.let { trimNum(it) } ?: "")
             } ?: emptyList(),
@@ -390,23 +390,23 @@ private fun WorkoutEditorSheet(
                     Text("Add exercise")
                 }
             }
-            exercises.forEach { ex -> key(ex.key) {
+            exercises.forEach { ex -> key(ex.uid) {
                 AppCard(color = MaterialTheme.colorScheme.surfaceContainerHigh, contentPadding = PaddingValues(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = ex.name,
-                            onValueChange = { v -> exercises = exercises.map { if (it.key == ex.key) it.copy(name = v.take(40)) else it } },
+                            onValueChange = { v -> exercises = exercises.map { if (it.uid == ex.uid) it.copy(name = v.take(40)) else it } },
                             label = { Text("Exercise") },
                             placeholder = { Text("e.g. Bench press") },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
-                        IconButton(onClick = { exercises = exercises.filter { it.key != ex.key } }) { Icon(Icons.Rounded.Close, "Remove") }
+                        IconButton(onClick = { exercises = exercises.filter { it.uid != ex.uid } }) { Icon(Icons.Rounded.Close, "Remove") }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SmallNumberField("Sets", ex.sets, Modifier.weight(1f)) { v -> exercises = exercises.map { if (it.key == ex.key) it.copy(sets = v) else it } }
-                        SmallNumberField("Reps", ex.reps, Modifier.weight(1f)) { v -> exercises = exercises.map { if (it.key == ex.key) it.copy(reps = v) else it } }
-                        SmallNumberField("Kg", ex.weight, Modifier.weight(1f), decimal = true) { v -> exercises = exercises.map { if (it.key == ex.key) it.copy(weight = v) else it } }
+                        SmallNumberField("Sets", ex.sets, Modifier.weight(1f)) { v -> exercises = exercises.map { if (it.uid == ex.uid) it.copy(sets = v) else it } }
+                        SmallNumberField("Reps", ex.reps, Modifier.weight(1f)) { v -> exercises = exercises.map { if (it.uid == ex.uid) it.copy(reps = v) else it } }
+                        SmallNumberField("Kg", ex.weight, Modifier.weight(1f), decimal = true) { v -> exercises = exercises.map { if (it.uid == ex.uid) it.copy(weight = v) else it } }
                     }
                 }
             } }

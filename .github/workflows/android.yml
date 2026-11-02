@@ -46,7 +46,7 @@ jobs:
           AIO_KEY_PASSWORD: ${{ secrets.AIO_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease assembleDebug --stacktrace
+          ./gradlew assembleRelease assembleDebug
 
       - name: Rename APKs
         run: |
@@ -60,7 +60,7 @@ jobs:
           path: dist/*.apk
 
       - name: Unit & UI smoke tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest
 
       - name: Upload test reports
         if: failure()
