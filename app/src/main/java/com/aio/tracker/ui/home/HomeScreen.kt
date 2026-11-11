@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aio.tracker.data.db.LoanDirection
 import com.aio.tracker.data.db.Prayer
 import com.aio.tracker.data.db.PrayerStatus
 import com.aio.tracker.data.db.TxnType
@@ -65,6 +66,7 @@ import com.aio.tracker.ui.components.LinearMeter
 import com.aio.tracker.ui.components.Pill
 import com.aio.tracker.ui.components.SectionHeader
 import com.aio.tracker.ui.components.StatTile
+import com.aio.tracker.ui.components.contentColorOn
 import com.aio.tracker.ui.components.rememberNow
 import com.aio.tracker.ui.planner.noteColor
 import com.aio.tracker.ui.planner.color
@@ -75,6 +77,7 @@ import com.aio.tracker.ui.theme.AppTheme
 import com.aio.tracker.util.Dates
 import com.aio.tracker.util.Money
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 
 @Composable
@@ -93,6 +96,7 @@ fun HomeScreen(
     val workouts by vm.workouts.collectAsStateWithLifecycle()
     val txns by vm.txns.collectAsStateWithLifecycle()
     val notes by vm.notes.collectAsStateWithLifecycle()
+    val loans by vm.loans.collectAsStateWithLifecycle()
     val hasKey by vm.hasApiKey.collectAsStateWithLifecycle()
     val now by rememberNow()
     val today = now.toLocalDate()
@@ -106,9 +110,17 @@ fun HomeScreen(
     val todayEpoch = today.toEpochDay()
     val dueToday = remember(todos, todayEpoch) { todos.filter { it.dueEpochDay != null && it.dueEpochDay <= todayEpoch && (!it.done || it.dueEpochDay == todayEpoch) } }
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay()
-    val weekMinutes = remember(workouts, weekStart) { workouts.filter { it.workout.epochDay >= weekStart }.sumOf { it.workout.durationMin } }
+    val weekMinutes = remember(workouts, weekStart) {
+        workouts.filter { it.workout.epochDay in weekStart..weekStart + 6 }.sumOf { it.workout.durationMin }
+    }
     val monthStart = today.withDayOfMonth(1).toEpochDay()
-    val monthTx = remember(txns, monthStart) { txns.filter { it.epochDay >= monthStart } }
+    val monthEnd = today.with(TemporalAdjusters.lastDayOfMonth()).toEpochDay()
+    val monthTx = remember(txns, monthStart, monthEnd) { txns.filter { it.epochDay in monthStart..monthEnd } }
+    // Open loans that are overdue or due within the next 3 days, paired with their due day.
+    val dueLoans = remember(loans, todayEpoch) {
+        loans.mapNotNull { l -> l.dueEpochDay?.takeIf { !l.settled && it <= todayEpoch + 3 }?.let { l to it } }
+            .sortedBy { it.second }
+    }
     val income = monthTx.filter { it.type == TxnType.INCOME }.sumOf { it.amountMinor }
     val expense = monthTx.filter { it.type == TxnType.EXPENSE }.sumOf { it.amountMinor }
     val featuredNotes = remember(notes) { notes.take(8) }
@@ -154,19 +166,20 @@ fun HomeScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     slots.forEach { s ->
                         val status = logMap[todayEpoch to s.prayer]?.status
+                        val statusColor = status?.color()
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
                                 Modifier
                                     .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(if (status != null) status.color() else Color.White.copy(alpha = 0.14f))
+                                    .background(statusColor ?: Color.White.copy(alpha = 0.14f))
                                     .then(if (next?.prayer == s.prayer && next.date == today) Modifier.border(2.dp, AppTheme.ext.gold, CircleShape) else Modifier),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     if (status != null && status != PrayerStatus.MISSED) Icons.Rounded.Check else s.prayer.icon,
                                     null,
-                                    tint = Color.White,
+                                    tint = if (statusColor != null) contentColorOn(statusColor) else Color.White,
                                     modifier = Modifier.size(18.dp),
                                 )
                             }
@@ -186,9 +199,11 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                            // The button is white in both themes, so use the dark hero color (not "primary",
+                            // which is a light blue in the dark theme).
+                            Icon(Icons.Rounded.CheckCircle, null, tint = AppTheme.ext.heroEnd)
                             Spacer(Modifier.width(8.dp))
-                            Text("I prayed ${pending.prayer.label}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Text("I prayed ${pending.prayer.label}", style = MaterialTheme.typography.labelLarge, color = AppTheme.ext.heroEnd)
                         }
                     }
                 }
@@ -271,7 +286,7 @@ fun HomeScreen(
                             IconButton(onClick = { vm.toggleTodo(t) }) {
                                 Icon(
                                     if (t.done) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                                    null,
+                                    if (t.done) "Mark not done" else "Mark done",
                                     tint = if (t.done) AppTheme.ext.income else t.priority.color(),
                                 )
                             }
@@ -287,6 +302,45 @@ fun HomeScreen(
                                 Pill("Overdue", AppTheme.ext.expense, Modifier.padding(end = 8.dp))
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        if (dueLoans.isNotEmpty()) {
+            item(key = "loansH") { SectionHeader("Loans due") }
+            item(key = "loans") {
+                AppCard(onClick = { onOpen(TopDestination.MONEY.route) }, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                    dueLoans.take(3).forEach { (loan, due) ->
+                        val overdue = due < todayEpoch
+                        Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    if (loan.direction == LoanDirection.LENT) "${loan.person} owes you" else "You owe ${loan.person}",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    Money.format(loan.remainingMinor, code),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Pill(
+                                if (overdue) "Overdue" else "Due " + Dates.relativeDay(LocalDate.ofEpochDay(due), today),
+                                if (overdue) AppTheme.ext.expense else MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                    }
+                    if (dueLoans.size > 3) {
+                        Text(
+                            "+${dueLoans.size - 3} more",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 6.dp),
+                        )
                     }
                 }
             }

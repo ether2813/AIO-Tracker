@@ -9,6 +9,7 @@ import com.aio.tracker.data.db.PrayerConfig
 import com.aio.tracker.data.db.PrayerLog
 import com.aio.tracker.data.db.PrayerStatus
 import com.aio.tracker.data.prefs.AppSettings
+import com.aio.tracker.reminders.Notifications
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -18,6 +19,8 @@ import java.time.LocalDate
 
 class SalatViewModel(private val c: AppContainer) : ViewModel() {
     private val dao = c.db.prayerDao()
+    // Only used as the lower bound of the queries below. The upper bounds are open, so the screen keeps
+    // working when the app stays in memory across midnight.
     private val today = LocalDate.now()
 
     val settings: StateFlow<AppSettings> = c.settings.settings
@@ -31,12 +34,13 @@ class SalatViewModel(private val c: AppContainer) : ViewModel() {
         .map { list -> list.associateBy { it.epochDay } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val logs: StateFlow<List<PrayerLog>> = dao.observeLogs(today.minusDays(400).toEpochDay(), today.plusDays(1).toEpochDay())
+    val logs: StateFlow<List<PrayerLog>> = dao.observeLogs(today.minusDays(HISTORY_DAYS).toEpochDay(), Long.MAX_VALUE)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setStatus(date: LocalDate, prayer: Prayer, status: PrayerStatus?) = viewModelScope.launch {
         if (status == null) dao.deleteLog(date.toEpochDay(), prayer)
         else dao.upsertLog(PrayerLog(date.toEpochDay(), prayer, status))
+        if (status != null && date == LocalDate.now()) Notifications.cancelPrayerReminder(c.appContext, prayer)
     }
 
     fun saveConfigs(list: List<PrayerConfig>) = viewModelScope.launch {
@@ -57,4 +61,9 @@ class SalatViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     fun refreshReminders() = c.reschedulePrayerReminders()
+
+    companion object {
+        /** How far back prayer logs are loaded (for streaks and for browsing earlier weeks). */
+        const val HISTORY_DAYS = 400L
+    }
 }

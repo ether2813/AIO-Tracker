@@ -34,8 +34,18 @@ object Notifications {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     fun notificationId(prayer: Prayer) = 2000 + prayer.ordinal
+    private const val TEST_NOTIFICATION_ID = 2999
 
-    fun showPrayerReminder(context: Context, prayer: Prayer, prayerAt: LocalDateTime, offsetMin: Int) {
+    /** Removes the reminder for [prayer], e.g. once it has been logged in the app. */
+    fun cancelPrayerReminder(context: Context, prayer: Prayer) {
+        runCatching { NotificationManagerCompat.from(context).cancel(notificationId(prayer)) }
+    }
+
+    /**
+     * @param test a preview from Settings: it has no "Mark as prayed" action (so it can't log a prayer that
+     * was not prayed) and it doesn't replace a real reminder.
+     */
+    fun showPrayerReminder(context: Context, prayer: Prayer, prayerAt: LocalDateTime, offsetMin: Int, test: Boolean = false) {
         if (!canPost(context)) return
         val open = PendingIntent.getActivity(
             context, 0,
@@ -57,7 +67,7 @@ object Notifications {
         val time = Dates.time(prayerAt.toLocalTime())
         val title = if (offsetMin <= 0) "It's time for ${prayer.label}" else "${prayer.label} in $offsetMin min"
         val text = if (prayer == Prayer.JUMUAH) "Jumu'ah prayer at $time. Time to get ready for the khutbah." else "${prayer.label} (${prayer.arabic}) at $time"
-        val notification = NotificationCompat.Builder(context, CHANNEL_PRAYER)
+        val builder = NotificationCompat.Builder(context, CHANNEL_PRAYER)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(0xFF0A72B5.toInt())
             .setContentTitle(title)
@@ -66,11 +76,10 @@ object Notifications {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(open)
             .setAutoCancel(true)
-            .setTimeoutAfter(6 * 60 * 60 * 1000L)
-            .addAction(0, "Mark as prayed", mark)
-            .build()
+            .setTimeoutAfter(if (test) 60 * 1000L else 6 * 60 * 60 * 1000L)
+        if (test) builder.setSubText("Test") else builder.addAction(0, "Mark as prayed", mark)
         try {
-            NotificationManagerCompat.from(context).notify(notificationId(prayer), notification)
+            NotificationManagerCompat.from(context).notify(if (test) TEST_NOTIFICATION_ID else notificationId(prayer), builder.build())
         } catch (e: SecurityException) {
         }
     }

@@ -10,14 +10,14 @@ modes, and optional Material You dynamic colour.
 
 | Area | What you can do |
 |---|---|
-| **Salat** | Enter your local mosque times for Fajr, Dhuhr, Asr, Maghrib and Isha, and change them whenever the timetable changes. Log each prayer as *Jama'ah / On time / Late / Missed*. See the next prayer with a countdown, a 7-day strip, streaks, 7- and 30-day completion and a per-prayer breakdown. |
+| **Salat** | Enter your local mosque times for Fajr, Dhuhr, Asr, Maghrib and Isha, and change them whenever the timetable changes. Log each prayer as *Jama'ah / On time / Late / Missed*. See the next prayer with a countdown, a 7-day strip (step back through earlier weeks to review or catch up), streaks, 7- and 30-day completion and a per-prayer breakdown. |
 | **Jumu'ah** | Set a default Jumu'ah time and **a different time for any specific Friday**, with an optional note (e.g. the mosque). On Fridays Jumu'ah replaces Dhuhr (you can turn this off). |
-| **Reminders** | Per-prayer notifications, at the prayer time or 5 to 60 minutes before. Each one has a **"Mark as prayed"** button. Reminders survive reboots, time-zone changes and app updates. |
-| **Fitness** | Log workouts (strength, run, walk, cycling, swim, HIIT, yoga, sports, …) with duration, calories, distance, intensity, notes and exercises (sets × reps @ kg). Shows a weekly goal ring, a 7-day chart, monthly totals and a streak. |
-| **Money** | Expenses and income with categories, notes and dates. Monthly net balance, budget meter, spending donut, 6-month trend. **Lending**: money you lent or borrowed, due dates, overdue flags and partial repayments. |
-| **Planner: To-Do** | Quick-add, due dates, priorities, filters (Today / Upcoming / Anytime / All / Done). Swipe right to complete, swipe left to delete (with undo). |
-| **Planner: Notes** | Notes in a staggered grid with search, pinning and colours. The full-screen editor auto-saves as you type. |
-| **AI Insights** | Paste a Google AI Studio (Gemini) API key. Generate a summary of everything, or of one area, for 7, 30 or 90 days, or ask your own question. Results are rendered and saved in History. |
+| **Reminders** | Per-prayer notifications, at the prayer time or 5 to 60 minutes before. Each one has a **"Mark as prayed"** button, which never overwrites a status you already logged. No reminder is shown for a prayer you have already logged. Reminders survive reboots, time-zone changes and app updates. |
+| **Fitness** | Log workouts (strength, run, walk, cycling, swim, HIIT, yoga, sports, …) with duration, calories, distance, intensity, notes and exercises (sets × reps @ kg). Shows a weekly goal ring (tap the pencil to change the goal), a 7-day chart, monthly totals and a streak. |
+| **Money** | Expenses and income with categories, notes and dates. Your own categories are remembered and offered again. Monthly net balance, budget meter, spending donut, 6-month trend, and a searchable activity list with totals. **Lending**: money you lent or borrowed, due dates, overdue flags and partial repayments. Loans that are overdue or due soon also show on Home. |
+| **Planner: To-Do** | Quick-add, due dates, priorities, filters (Today / Upcoming / Anytime / All / Done). Swipe right to complete (or un-complete), swipe left to delete. Every delete can be undone. |
+| **Planner: Notes** | Notes in a staggered grid with search, pinning and colours. Long-press a note to pin or delete it (with undo). The full-screen editor auto-saves as you type. |
+| **AI Insights** | Paste a Google AI Studio (Gemini) API key. Generate a summary of everything, or of one area, for 7, 30 or 90 days, or ask your own question. Results are rendered and saved in History, even if you leave the screen while the answer is being written. |
 | **Backup** | Export everything to a JSON file and import it again. This is fully local, using the Android file picker. |
 
 ## Security and privacy

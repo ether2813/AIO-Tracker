@@ -66,10 +66,12 @@ fun BarChart(
             values.forEachIndexed { i, v ->
                 val x = slot * i + (slot - barWidth) / 2
                 drawRoundRect(track, Offset(x, 0f), Size(barWidth, size.height), radius)
-                val h = (v / max) * size.height * anim.value
-                if (h > 0f) {
+                val raw = (v / max) * size.height * anim.value
+                if (raw > 0f) {
+                    // Keep at least a full "pill" visible for tiny values, but never draw outside the chart.
+                    val h = raw.coerceAtLeast(barWidth).coerceAtMost(size.height)
                     val c = if (highlightIndex == -1 || highlightIndex == i) barColor else barColor.copy(alpha = 0.55f)
-                    drawRoundRect(c, Offset(x, size.height - h), Size(barWidth, h.coerceAtLeast(barWidth)), radius)
+                    drawRoundRect(c, Offset(x, size.height - h), Size(barWidth, h), radius)
                 }
             }
         }

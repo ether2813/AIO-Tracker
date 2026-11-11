@@ -26,6 +26,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.LocalFireDepartment
@@ -53,6 +55,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -92,6 +95,7 @@ import com.aio.tracker.ui.components.ProgressRing
 import com.aio.tracker.ui.components.SectionHeader
 import com.aio.tracker.ui.components.SheetTitle
 import com.aio.tracker.ui.components.TimeField
+import com.aio.tracker.ui.components.contentColorOn
 import com.aio.tracker.ui.components.rememberNow
 import com.aio.tracker.ui.components.screenPadding
 import com.aio.tracker.ui.theme.AppTheme
@@ -112,6 +116,26 @@ fun SalatScreen(onOpenSettings: () -> Unit) {
     val today = now.toLocalDate()
     var selectedDay by rememberSaveable { mutableLongStateOf(LocalDate.now().toEpochDay()) }
     val selectedDate = LocalDate.ofEpochDay(selectedDay)
+    // 0 = the 7 days ending today, 1 = the 7 days before that, ...
+    var weekOffset by rememberSaveable { mutableIntStateOf(0) }
+    var lastToday by rememberSaveable { mutableLongStateOf(LocalDate.now().toEpochDay()) }
+    val todayEpoch = today.toEpochDay()
+    LaunchedEffect(todayEpoch) {
+        if (lastToday != todayEpoch) {
+            // A new day started while this screen was kept in memory. Follow "today", so prayers are not
+            // logged on yesterday by accident, unless an older day was selected on purpose.
+            if (selectedDay == lastToday) {
+                selectedDay = todayEpoch
+                weekOffset = 0
+            }
+            lastToday = todayEpoch
+        }
+    }
+    val stripEnd = today.minusWeeks(weekOffset.toLong())
+    fun showWeek(offset: Int) {
+        weekOffset = offset.coerceIn(0, MAX_WEEKS_BACK)
+        selectedDay = today.minusWeeks(weekOffset.toLong()).toEpochDay()
+    }
     var showTimes by remember { mutableStateOf(false) }
     var editFriday by remember { mutableStateOf<LocalDate?>(null) }
     var editPrayerTime by remember { mutableStateOf<Prayer?>(null) }
@@ -146,9 +170,20 @@ fun SalatScreen(onOpenSettings: () -> Unit) {
                 NextPrayerHero(now, configs, overrides, replaces, logMap, onEditTimes = { showTimes = true })
             }
             item(key = "perm") { ReminderPermissionBanner(onChanged = vm::refreshReminders) }
+            item(key = "weekNav") {
+                WeekNav(
+                    start = stripEnd.minusDays(6),
+                    end = stripEnd,
+                    isCurrent = weekOffset == 0,
+                    canGoBack = weekOffset < MAX_WEEKS_BACK,
+                    onPrev = { showWeek(weekOffset + 1) },
+                    onNext = { showWeek(weekOffset - 1) },
+                    onToday = { showWeek(0) },
+                )
+            }
             item(key = "week") {
                 WeekStrip(
-                    today = today,
+                    end = stripEnd,
                     selected = selectedDate,
                     logMap = logMap,
                     replaces = replaces,
@@ -156,7 +191,13 @@ fun SalatScreen(onOpenSettings: () -> Unit) {
                 )
             }
             item(key = "dayTitle") {
-                SectionHeader(if (selectedDate == today) "Today's prayers" else Dates.long(selectedDate))
+                SectionHeader(
+                    when {
+                        selectedDate == today -> "Today's prayers"
+                        selectedDate.year == today.year -> Dates.long(selectedDate)
+                        else -> Dates.day(selectedDate)
+                    },
+                )
             }
             items(slots, key = { "slot-" + it.prayer.name }) { slot ->
                 PrayerRow(
@@ -326,9 +367,37 @@ private fun ReminderPermissionBanner(onChanged: () -> Unit) {
     }
 }
 
+/** Browsing is limited to what [SalatViewModel.HISTORY_DAYS] keeps loaded. */
+private const val MAX_WEEKS_BACK = 52
+
+/** Lets the user step back through earlier weeks to review or catch up on logs. */
+@Composable
+private fun WeekNav(
+    start: LocalDate,
+    end: LocalDate,
+    isCurrent: Boolean,
+    canGoBack: Boolean,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onToday: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onPrev, enabled = canGoBack) { Icon(Icons.Rounded.ChevronLeft, "Earlier days") }
+        Text(
+            if (isCurrent) "Last 7 days" else Dates.day(start) + " – " + Dates.day(end),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+        if (!isCurrent) TextButton(onClick = onToday) { Text("Today") }
+        IconButton(onClick = onNext, enabled = !isCurrent) { Icon(Icons.Rounded.ChevronRight, "Later days") }
+    }
+}
+
 @Composable
 private fun WeekStrip(
-    today: LocalDate,
+    end: LocalDate,
     selected: LocalDate,
     logMap: Map<Pair<Long, Prayer>, PrayerLog>,
     replaces: Boolean,
@@ -336,7 +405,7 @@ private fun WeekStrip(
 ) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (i in 6 downTo 0) {
-            val d = today.minusDays(i.toLong())
+            val d = end.minusDays(i.toLong())
             val prayers = PrayerSchedule.prayersFor(d, replaces)
             val done = prayers.count { logMap[d.toEpochDay() to it]?.status?.counts == true }
             val isSel = d == selected
@@ -444,7 +513,7 @@ private fun PrayerRow(
 @Composable
 private fun StatusChip(label: String, color: Color, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val bg by animateColorAsState(if (selected) color else MaterialTheme.colorScheme.surfaceContainerHighest, label = "chip")
-    val fg = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+    val fg = if (selected) contentColorOn(color) else MaterialTheme.colorScheme.onSurfaceVariant
     Surface(onClick = onClick, modifier = modifier.height(38.dp), shape = MaterialTheme.shapes.small, color = bg) {
         Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             if (selected) {
