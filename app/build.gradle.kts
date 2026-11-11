@@ -70,6 +70,11 @@ android {
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     }
+    sourceSets {
+        // Exported Room schemas (see the ksp block below) as assets, so MigrationTestHelper can load them.
+        // Robolectric unit tests read the debug variant's assets. Release builds do not include them.
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
     testOptions {
         unitTests.isIncludeAndroidResources = true
         unitTests.all {
@@ -88,6 +93,9 @@ android {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
+
+// KSP writes the schema JSON, so the debug assets that carry it into the tests must be merged after it runs.
+tasks.matching { it.name == "mergeDebugAssets" }.configureEach { dependsOn("kspDebugKotlin") }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -118,6 +126,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.androidx.room.testing)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
