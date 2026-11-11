@@ -84,6 +84,25 @@ Requirements: JDK 17 and the Android SDK (API 35).
 ./gradlew testDebugUnitTest    # unit tests + Robolectric UI smoke test
 ```
 
+### Changing the database schema
+
+All user data lives in the local Room database, so every schema change needs a migration. Without one the app
+crashes on startup for everyone who already has it installed.
+
+Room exports the schema of each database version to `app/schemas/com.aio.tracker.data.db.AppDatabase/`. These
+JSON files are committed: they are the baseline that migrations are generated from and tested against.
+
+Whenever you change an `@Entity` (in `data/db/Entities.kt`) or the entity list in `AppDatabase`:
+
+1. Bump `version` in `@Database` (`data/db/AppDatabase.kt`).
+2. Add a migration from the previous version: either `autoMigrations = [AutoMigration(from = N, to = N + 1)]`
+   in `@Database` for simple changes (new tables, new columns with a default value), or a hand-written
+   `Migration` registered with `.addMigrations(...)` on the database builder.
+3. Build, then commit the new `N + 1.json` that appears in `app/schemas/`. Never edit or delete the JSON of a
+   version that has already been released.
+4. Extend `MigrationTest` (`app/src/test`) to run the migration with `MigrationTestHelper` and check that
+   existing rows survive.
+
 ## Project structure
 
 ```
