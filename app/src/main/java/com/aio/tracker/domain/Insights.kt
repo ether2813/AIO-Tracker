@@ -9,6 +9,7 @@ import com.aio.tracker.data.prefs.AppSettings
 import com.aio.tracker.util.Money
 import com.aio.tracker.util.toLocalDate
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 enum class AiScope(val label: String) {
     EVERYTHING("Everything"),
@@ -64,15 +65,19 @@ class InsightsBuilder(private val db: AppDatabase) {
         val logs = db.prayerDao().getLogs(from.toEpochDay(), to.toEpochDay())
         val replaces = s.jumuahReplacesDhuhr
         sb.appendLine("# SALAT")
-        sb.appendLine("Status meanings: JAMAAH = prayed in congregation, ON_TIME = prayed on time alone, LATE = prayed late/qada, MISSED = missed. Unlogged = no entry.")
+        sb.appendLine("Status meanings: JAMAAH = prayed in congregation, ON_TIME = prayed on time alone, LATE = prayed late/qada, MISSED = missed. UNLOGGED = no entry. UPCOMING = later today, its time has not started yet (not a shortfall).")
         var expected = 0
         val perPrayer = linkedMapOf<Prayer, MutableMap<String, Int>>()
         var d = from
         val map = logs.associateBy { it.epochDay to it.prayer }
+        val configs = db.prayerDao().getConfigs().associateBy { it.prayer }
+        val overrides = db.prayerDao().getOverridesFrom(from.toEpochDay()).associateBy { it.epochDay }
+        val now = LocalDateTime.now()
         while (!d.isAfter(to)) {
-            for (p in PrayerSchedule.prayersFor(d, replaces)) {
+            for (slot in PrayerSchedule.slotsFor(d, configs, overrides, replaces)) {
+                val p = slot.prayer
                 expected++
-                val key = map[d.toEpochDay() to p]?.status?.name ?: "UNLOGGED"
+                val key = map[d.toEpochDay() to p]?.status?.name ?: if (slot.at.isAfter(now)) "UPCOMING" else "UNLOGGED"
                 val m = perPrayer.getOrPut(p) { linkedMapOf() }
                 m[key] = (m[key] ?: 0) + 1
             }
@@ -83,7 +88,7 @@ class InsightsBuilder(private val db: AppDatabase) {
         val totals = HashMap<String, Int>()
         perPrayer.values.forEach { m -> m.forEach { (k, v) -> totals[k] = (totals[k] ?: 0) + v } }
         sb.appendLine("Expected prayers: $expected. " + PrayerStatus.entries.joinToString(", ") { "${it.name}: ${totals[it.name] ?: 0}" } +
-            ", UNLOGGED: ${totals["UNLOGGED"] ?: 0}.")
+            ", UNLOGGED: ${totals["UNLOGGED"] ?: 0}, UPCOMING: ${totals["UPCOMING"] ?: 0}.")
         sb.appendLine("Completion: ${(PrayerSchedule.completion(from, to, logs, replaces) * 100).toInt()}%. Current full-day streak: ${PrayerSchedule.streak(to, db.prayerDao().getLogs(to.minusDays(400).toEpochDay(), to.toEpochDay()), replaces)} days.")
         perPrayer.forEach { (p, m) -> sb.appendLine("- ${p.label}: " + m.entries.joinToString(", ") { "${it.key}=${it.value}" }) }
         sb.appendLine()

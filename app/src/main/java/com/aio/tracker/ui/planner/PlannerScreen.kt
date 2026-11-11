@@ -290,6 +290,8 @@ private fun TodoList(
         }
         onQuickAdd(TodoItem(title = text, dueEpochDay = due))
         quick = ""
+        // A new task is not "done", so it would not show up in the Done list: switch to where it is.
+        if (filter == TodoFilter.DONE) filter = TodoFilter.ALL
     }
 
     LazyColumn(
@@ -592,54 +594,54 @@ private fun NoteCard(n: Note, onClick: () -> Unit, onTogglePin: () -> Unit, onDe
     val haptics = LocalHapticFeedback.current
     var menu by remember { mutableStateOf(false) }
     Box {
-    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-        DropdownMenuItem(
-            text = { Text(if (n.pinned) "Unpin" else "Pin to top") },
-            leadingIcon = { Icon(Icons.Rounded.PushPin, null) },
-            onClick = { menu = false; onTogglePin() },
-        )
-        DropdownMenuItem(
-            text = { Text("Delete") },
-            leadingIcon = { Icon(Icons.Rounded.Delete, null) },
-            onClick = { menu = false; onDelete() },
-        )
-    }
-    Surface(
-        shape = shape,
-        color = bg,
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (n.color == 0) Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
-                else Modifier,
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text(if (n.pinned) "Unpin" else "Pin to top") },
+                leadingIcon = { Icon(Icons.Rounded.PushPin, null) },
+                onClick = { menu = false; onTogglePin() },
             )
-            .clip(shape)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClickLabel = "Note actions",
-                onLongClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    menu = true
-                },
-            ),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                if (n.title.isNotBlank()) {
-                    Text(n.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
-                if (n.pinned) Icon(Icons.Rounded.PushPin, "Pinned", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-            }
-            if (n.content.isNotBlank()) {
-                if (n.title.isNotBlank()) Spacer(Modifier.height(6.dp))
-                Text(n.content, style = MaterialTheme.typography.bodyMedium, maxLines = 10, overflow = TextOverflow.Ellipsis)
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(Dates.dateTime(n.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            DropdownMenuItem(
+                text = { Text("Delete") },
+                leadingIcon = { Icon(Icons.Rounded.Delete, null) },
+                onClick = { menu = false; onDelete() },
+            )
         }
-    }
+        Surface(
+            shape = shape,
+            color = bg,
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (n.color == 0) Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+                    else Modifier,
+                )
+                .clip(shape)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClickLabel = "Note actions",
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menu = true
+                    },
+                ),
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    if (n.title.isNotBlank()) {
+                        Text(n.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    if (n.pinned) Icon(Icons.Rounded.PushPin, "Pinned", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+                if (n.content.isNotBlank()) {
+                    if (n.title.isNotBlank()) Spacer(Modifier.height(6.dp))
+                    Text(n.content, style = MaterialTheme.typography.bodyMedium, maxLines = 10, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(Dates.dateTime(n.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 

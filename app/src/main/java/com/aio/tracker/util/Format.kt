@@ -75,7 +75,11 @@ object Dates {
 
     fun today(): LocalDate = LocalDate.now()
 
-    fun time(minuteOfDay: Int): String = LocalTime.of((minuteOfDay / 60) % 24, minuteOfDay % 60).format(timeFmt)
+    fun time(minuteOfDay: Int): String {
+        // Never crash on an out-of-range value (e.g. from a hand-edited backup file).
+        val m = minuteOfDay.coerceIn(0, 24 * 60 - 1)
+        return LocalTime.of(m / 60, m % 60).format(timeFmt)
+    }
     fun time(t: LocalTime): String = t.format(timeFmt)
 
     fun relativeDay(date: LocalDate, today: LocalDate = today()): String = when (date) {
