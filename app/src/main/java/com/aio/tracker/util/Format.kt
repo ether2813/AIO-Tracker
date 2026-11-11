@@ -25,7 +25,7 @@ object Money {
         }
     }
 
-    fun format(minor: Long, code: String): String = formatter(code).format(minor / 100.0)
+    fun format(minor: Long, code: String): String = synchronized(cache) { formatter(code).format(minor / 100.0) }
 
     /** Short form for charts and tiles, e.g. "$1.2K". */
     fun compact(minor: Long, code: String): String {

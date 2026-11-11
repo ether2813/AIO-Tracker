@@ -41,6 +41,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,6 +49,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aio.tracker.ui.theme.AppTheme
+
+/**
+ * Text/icon color that stays readable on top of [background]. The accent colors are light in the
+ * dark theme, where plain white content would have too little contrast.
+ */
+fun contentColorOn(background: Color): Color =
+    if (background.luminance() > 0.45f) Color(0xFF0E1B26) else Color.White
 
 @Composable
 fun SectionHeader(

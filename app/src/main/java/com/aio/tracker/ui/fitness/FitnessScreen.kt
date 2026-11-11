@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.LocalFireDepartment
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.SportsSoccer
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Whatshot
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -116,6 +118,7 @@ fun FitnessScreen() {
     val workouts = workoutsState.orEmpty()
     var editing by remember { mutableStateOf<WorkoutWithExercises?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var editGoal by remember { mutableStateOf(false) }
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val today = LocalDate.now()
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -127,10 +130,13 @@ fun FitnessScreen() {
         }
     }
     val weekTotal = weekMinutes.sum().toInt()
-    val weekSessions = remember(workouts, weekStart) { workouts.count { it.workout.epochDay >= weekStart.toEpochDay() && it.workout.epochDay <= today.toEpochDay() } }
-    val weekCalories = remember(workouts, weekStart) { workouts.filter { it.workout.epochDay >= weekStart.toEpochDay() }.sumOf { it.workout.calories ?: 0 } }
+    // Same Monday-to-Sunday range as the chart, so the ring, the pills and the bars always agree.
+    val weekRange = weekStart.toEpochDay()..weekStart.toEpochDay() + 6
+    val weekSessions = remember(workouts, weekStart) { workouts.count { it.workout.epochDay in weekRange } }
+    val weekCalories = remember(workouts, weekStart) { workouts.filter { it.workout.epochDay in weekRange }.sumOf { it.workout.calories ?: 0 } }
     val monthStart = today.withDayOfMonth(1).toEpochDay()
-    val monthList = remember(workouts, monthStart) { workouts.filter { it.workout.epochDay >= monthStart } }
+    val monthEnd = today.with(TemporalAdjusters.lastDayOfMonth()).toEpochDay()
+    val monthList = remember(workouts, monthStart, monthEnd) { workouts.filter { it.workout.epochDay in monthStart..monthEnd } }
     val activeStreak = remember(workouts, today) {
         val days = workouts.map { it.workout.epochDay }.toSet()
         var d = if (today.toEpochDay() in days) today.toEpochDay() else today.toEpochDay() - 1
@@ -193,6 +199,9 @@ fun FitnessScreen() {
                                 if (weekCalories > 0) Pill("$weekCalories kcal", AppTheme.ext.warning)
                             }
                         }
+                        IconButton(onClick = { editGoal = true }) {
+                            Icon(Icons.Rounded.Edit, "Change weekly goal", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                     Spacer(Modifier.height(16.dp))
                     BarChart(
@@ -238,6 +247,41 @@ fun FitnessScreen() {
             onDelete = { id -> vm.delete(id); creating = false; editing = null },
         )
     }
+    if (editGoal) {
+        GoalDialog(settings.weeklyWorkoutGoalMin, onDismiss = { editGoal = false }, onSave = { vm.setGoal(it) })
+    }
+}
+
+@Composable
+private fun GoalDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
+    var text by remember { mutableStateOf(current.toString()) }
+    val value = text.toIntOrNull()
+    val valid = value != null && value in 10..3000
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Weekly activity goal") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { v -> text = v.filter(Char::isDigit).take(4) },
+                    label = { Text("Minutes per week") },
+                    supportingText = { Text("Between 10 and 3000 minutes") },
+                    singleLine = true,
+                    isError = !valid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(75, 150, 300).forEach { m ->
+                        FilterChip(selected = value == m, onClick = { text = m.toString() }, label = { Text("$m min") })
+                    }
+                }
+            }
+        },
+        confirmButton = { Button(enabled = valid, onClick = { onSave(value ?: current); onDismiss() }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -251,7 +295,7 @@ private fun WorkoutCard(item: WorkoutWithExercises, onClick: () -> Unit) {
                 Text(w.title.ifBlank { w.type.label }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val parts = buildList {
                     add(Dates.duration(w.durationMin.toLong()))
-                    w.distanceKm?.let { add("${it} km") }
+                    w.distanceKm?.let { add("${trimNum(it)} km") }
                     w.calories?.let { add("$it kcal") }
                     add(listOf("Easy", "Moderate", "Hard")[(w.intensity - 1).coerceIn(0, 2)])
                 }

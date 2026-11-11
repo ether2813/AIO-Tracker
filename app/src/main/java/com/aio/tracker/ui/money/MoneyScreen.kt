@@ -24,10 +24,12 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Receipt
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -111,6 +113,16 @@ fun MoneyScreen() {
     var newLoan by remember { mutableStateOf(false) }
     var repayLoan by remember { mutableStateOf<Loan?>(null) }
     var monthOffset by rememberSaveable { mutableIntStateOf(0) }
+    var query by rememberSaveable { mutableStateOf("") }
+    // The user's own categories (most used first), offered again as chips in the editor.
+    val customCategories = remember(txns) {
+        val builtIn = (Categories.expense + Categories.income).map { it.name.lowercase() }.toSet()
+        txns.filter { it.category.lowercase() !in builtIn }
+            .groupBy { it.type }
+            .mapValues { (_, list) ->
+                list.groupingBy { it.category }.eachCount().entries.sortedByDescending { it.value }.take(8).map { it.key }
+            }
+    }
     val month = YearMonth.now().minusMonths(monthOffset.toLong())
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val currentTab = MoneyTab.entries[tab]
@@ -162,7 +174,15 @@ fun MoneyScreen() {
                     onOpenTxn = { editTxn = it },
                     loaded = txnsState != null,
                 )
-                MoneyTab.TRANSACTIONS -> transactions(txns, code, loaded = txnsState != null, onOpen = { editTxn = it }, onAdd = { newTxnType = TxnType.EXPENSE })
+                MoneyTab.TRANSACTIONS -> transactions(
+                    txns = txns,
+                    code = code,
+                    loaded = txnsState != null,
+                    query = query,
+                    onQuery = { query = it.take(60) },
+                    onOpen = { editTxn = it },
+                    onAdd = { newTxnType = TxnType.EXPENSE },
+                )
                 MoneyTab.LENDING -> lending(loans, code, loaded = loansState != null, onOpen = { editLoan = it }, onRepay = { repayLoan = it }, onAdd = { newLoan = true })
             }
         }
@@ -173,6 +193,7 @@ fun MoneyScreen() {
             existing = editTxn,
             initialType = newTxnType ?: TxnType.EXPENSE,
             code = code,
+            customCategories = customCategories,
             onDismiss = { editTxn = null; newTxnType = null },
             onSave = { vm.saveTxn(it); editTxn = null; newTxnType = null },
             onDelete = { vm.deleteTxn(it); editTxn = null; newTxnType = null },
@@ -349,6 +370,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.transactions(
     txns: List<MoneyTxn>,
     code: String,
     loaded: Boolean,
+    query: String,
+    onQuery: (String) -> Unit,
     onOpen: (MoneyTxn) -> Unit,
     onAdd: () -> Unit,
 ) {
@@ -358,8 +381,44 @@ private fun androidx.compose.foundation.lazy.LazyListScope.transactions(
         }
         return
     }
+    item(key = "search") {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQuery,
+            placeholder = { Text("Search category or note") },
+            leadingIcon = { Icon(Icons.Rounded.Search, null) },
+            trailingIcon = {
+                if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }) { Icon(Icons.Rounded.Close, "Clear search") }
+            },
+            singleLine = true,
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    val q = query.trim()
+    val shown = if (q.isEmpty()) txns else txns.filter { it.category.contains(q, ignoreCase = true) || it.note.contains(q, ignoreCase = true) }
+    if (q.isNotEmpty()) {
+        if (shown.isEmpty()) {
+            item(key = "noMatch") { EmptyState(Icons.Rounded.Search, "No matches", "No entries match \"$q\".") }
+            return
+        }
+        item(key = "matchSummary") {
+            val spent = shown.filter { it.type == TxnType.EXPENSE }.sumOf { it.amountMinor }
+            val received = shown.filter { it.type == TxnType.INCOME }.sumOf { it.amountMinor }
+            Text(
+                buildString {
+                    append(if (shown.size == 1) "1 entry" else "${shown.size} entries")
+                    if (spent > 0) append(" · ${Money.format(spent, code)} spent")
+                    if (received > 0) append(" · ${Money.format(received, code)} received")
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+    }
     val today = LocalDate.now()
-    txns.groupBy { it.epochDay }.forEach { (day, list) ->
+    shown.groupBy { it.epochDay }.forEach { (day, list) ->
         item(key = "d$day") {
             val net = list.sumOf { if (it.type == TxnType.INCOME) it.amountMinor else -it.amountMinor }
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -509,6 +568,7 @@ private fun TxnEditorSheet(
     existing: MoneyTxn?,
     initialType: TxnType,
     code: String,
+    customCategories: Map<TxnType, List<String>>,
     onDismiss: () -> Unit,
     onSave: (MoneyTxn) -> Unit,
     onDelete: (MoneyTxn) -> Unit,
@@ -523,7 +583,13 @@ private fun TxnEditorSheet(
     var confirmDelete by remember { mutableStateOf(false) }
     val parsed = Money.parse(amount)
     val cats = Categories.forType(type)
-    val finalCategory = if (category == "Other" && customCategory.isNotBlank()) customCategory.trim() else category
+    val custom = customCategories[type].orEmpty()
+    val finalCategory = (if (category == "Other" && customCategory.isNotBlank()) customCategory else category).trim().let { typed ->
+        // Reuse the existing spelling ("pets" -> "Pets") so one category doesn't split into several.
+        cats.firstOrNull { it.name.equals(typed, ignoreCase = true) }?.name
+            ?: custom.firstOrNull { it.equals(typed, ignoreCase = true) }
+            ?: typed
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         Column(
@@ -550,13 +616,23 @@ private fun TxnEditorSheet(
             AmountField(amount, { amount = it }, isError = amount.isNotEmpty() && parsed == null, label = "Amount ($code)")
             Text("Category", style = MaterialTheme.typography.labelLarge)
             val knownCategory = cats.any { it.name == category }
+            val savedCustom = category in custom
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 cats.forEach { c ->
                     FilterChip(
-                        selected = category == c.name || (!knownCategory && c.name == "Other"),
+                        selected = category == c.name || (!knownCategory && !savedCustom && c.name == "Other"),
                         onClick = { category = c.name },
                         label = { Text(c.name) },
                         leadingIcon = { Icon(c.icon, null, Modifier.size(FilterChipDefaults.IconSize)) },
+                    )
+                }
+                // Categories the user created earlier.
+                custom.forEach { name ->
+                    FilterChip(
+                        selected = category == name,
+                        onClick = { category = name },
+                        label = { Text(name) },
+                        leadingIcon = { Icon(Categories.icon(name), null, Modifier.size(FilterChipDefaults.IconSize)) },
                     )
                 }
             }

@@ -14,6 +14,7 @@ import com.aio.tracker.data.db.PrayerStatus
 import com.aio.tracker.data.db.TodoItem
 import com.aio.tracker.data.db.WorkoutWithExercises
 import com.aio.tracker.data.prefs.AppSettings
+import com.aio.tracker.reminders.Notifications
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -22,6 +23,8 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 class HomeViewModel(private val c: AppContainer) : ViewModel() {
+    // Only used as the lower bound of the queries below. The upper bounds are open, so the screen keeps
+    // working when the app stays in memory across midnight.
     private val today = LocalDate.now()
     private fun <T> kotlinx.coroutines.flow.Flow<T>.state(initial: T): StateFlow<T> =
         stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), initial)
@@ -29,7 +32,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
     val settings: StateFlow<AppSettings> = c.settings.settings.state(AppSettings())
     val configs: StateFlow<Map<Prayer, PrayerConfig>> = c.db.prayerDao().observeConfigs().map { l -> l.associateBy { it.prayer } }.state(emptyMap())
     val overrides: StateFlow<Map<Long, JumuahOverride>> = c.db.prayerDao().observeOverridesFrom(today.toEpochDay()).map { l -> l.associateBy { it.epochDay } }.state(emptyMap())
-    val logs: StateFlow<List<PrayerLog>> = c.db.prayerDao().observeLogs(today.minusDays(1).toEpochDay(), today.plusDays(1).toEpochDay()).state(emptyList())
+    val logs: StateFlow<List<PrayerLog>> = c.db.prayerDao().observeLogs(today.minusDays(1).toEpochDay(), Long.MAX_VALUE).state(emptyList())
     val todos: StateFlow<List<TodoItem>> = c.db.todoDao().observeAll().state(emptyList())
     val workouts: StateFlow<List<WorkoutWithExercises>> = c.db.workoutDao().observeAll().state(emptyList())
     val txns: StateFlow<List<MoneyTxn>> = c.db.moneyDao().observeTxns().state(emptyList())
@@ -39,6 +42,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
 
     fun markPrayer(date: LocalDate, prayer: Prayer, status: PrayerStatus) = viewModelScope.launch {
         c.db.prayerDao().upsertLog(PrayerLog(date.toEpochDay(), prayer, status))
+        if (date == LocalDate.now()) Notifications.cancelPrayerReminder(c.appContext, prayer)
     }
 
     fun toggleTodo(t: TodoItem) = viewModelScope.launch {

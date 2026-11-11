@@ -218,7 +218,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         "Check how prayer notifications look",
                         onClick = {
                             if (!canNotify && Build.VERSION.SDK_INT >= 33) notifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                            else Notifications.showPrayerReminder(context, Prayer.ASR, LocalDateTime.now().plusMinutes(10), 10)
+                            else Notifications.showPrayerReminder(context, Prayer.ASR, LocalDateTime.now().plusMinutes(10), 10, test = true)
                         },
                     )
                 }

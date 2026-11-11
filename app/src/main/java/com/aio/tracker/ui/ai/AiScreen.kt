@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -52,7 +53,12 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,6 +80,7 @@ import com.aio.tracker.ui.components.MarkdownText
 import com.aio.tracker.ui.components.SectionHeader
 import com.aio.tracker.ui.components.screenPadding
 import com.aio.tracker.util.Dates
+import kotlinx.coroutines.launch
 
 @Composable
 fun AiScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
@@ -81,6 +88,19 @@ fun AiScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
     val hasKey by vm.hasKey.collectAsStateWithLifecycle()
     val history by vm.history.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    // Position of the "result" item below: intro, (missing key card), controls, result.
+    val resultIndex = if (hasKey) 2 else 3
+    // Bring a new answer (or error) into view: it appears below the controls and can be off screen.
+    var shownState by remember { mutableStateOf(vm.state) }
+    LaunchedEffect(vm.state) {
+        val st = vm.state
+        if (st != shownState) {
+            shownState = st
+            if (st is AiState.Done || st is AiState.Error) listState.animateScrollToItem(resultIndex)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -90,7 +110,7 @@ fun AiScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             )
         },
     ) { padding ->
-        LazyColumn(contentPadding = screenPadding(padding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(state = listState, contentPadding = screenPadding(padding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item(key = "intro") {
                 HeroCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -203,7 +223,14 @@ fun AiScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
                 }
             }
             items(history, key = { it.id }) { s ->
-                AppCard(onClick = { vm.show(s) }, contentPadding = PaddingValues(14.dp)) {
+                AppCard(
+                    onClick = {
+                        vm.show(s)
+                        // The summary opens above this list, so scroll up to it.
+                        scope.launch { listState.animateScrollToItem(resultIndex) }
+                    },
+                    contentPadding = PaddingValues(14.dp),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconBadge(Icons.Rounded.AutoAwesome, MaterialTheme.colorScheme.tertiary, size = 36.dp)
                         Spacer(Modifier.width(12.dp))

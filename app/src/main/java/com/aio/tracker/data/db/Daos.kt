@@ -41,6 +41,9 @@ interface PrayerDao {
     @Query("SELECT * FROM prayer_log WHERE epochDay BETWEEN :fromDay AND :toDay")
     suspend fun getLogs(fromDay: Long, toDay: Long): List<PrayerLog>
 
+    @Query("SELECT * FROM prayer_log WHERE epochDay = :day AND prayer = :prayer LIMIT 1")
+    suspend fun getLog(day: Long, prayer: Prayer): PrayerLog?
+
     @Upsert
     suspend fun upsertLog(log: PrayerLog)
 

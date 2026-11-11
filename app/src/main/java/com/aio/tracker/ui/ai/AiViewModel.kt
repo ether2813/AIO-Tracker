@@ -10,6 +10,7 @@ import com.aio.tracker.data.ai.GeminiException
 import com.aio.tracker.data.db.AiSummary
 import com.aio.tracker.domain.AiPeriod
 import com.aio.tracker.domain.AiScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -38,13 +39,17 @@ class AiViewModel(private val c: AppContainer) : ViewModel() {
 
     fun generate() {
         if (state == AiState.Loading) return
-        job = viewModelScope.launch {
+        val scope = this.scope
+        val period = this.period
+        val q = question.trim()
+        // Runs in the app scope: a request can take a while, and leaving this screen should not throw
+        // the answer away. It is still saved to History, where it shows up when the user comes back.
+        job = c.appScope.launch(Dispatchers.Main.immediate) {
             state = AiState.Loading
             state = try {
                 val key = c.secrets.readApiKey() ?: throw GeminiException("No API key saved. Add it in Settings.")
                 val settings = c.settings.current()
                 val digest = c.insights.build(scope, period, settings)
-                val q = question.trim()
                 val prompt = buildString {
                     appendLine(
                         if (q.isNotEmpty()) "My question: $q\nAnswer it using my data below."

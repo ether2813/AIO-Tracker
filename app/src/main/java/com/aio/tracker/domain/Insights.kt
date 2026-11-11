@@ -78,9 +78,12 @@ class InsightsBuilder(private val db: AppDatabase) {
             }
             d = d.plusDays(1)
         }
-        val counts = PrayerSchedule.statusCounts(logs)
-        sb.appendLine("Expected prayers: $expected. " + PrayerStatus.entries.joinToString(", ") { "${it.name}: ${counts[it] ?: 0}" } +
-            ", UNLOGGED: ${(expected - logs.size).coerceAtLeast(0)}.")
+        // Totals over the expected prayers only, so they always add up to "expected" (a stray log, e.g. a
+        // Dhuhr entry on a Friday that now counts as Jumu'ah, must not hide an unlogged prayer).
+        val totals = HashMap<String, Int>()
+        perPrayer.values.forEach { m -> m.forEach { (k, v) -> totals[k] = (totals[k] ?: 0) + v } }
+        sb.appendLine("Expected prayers: $expected. " + PrayerStatus.entries.joinToString(", ") { "${it.name}: ${totals[it.name] ?: 0}" } +
+            ", UNLOGGED: ${totals["UNLOGGED"] ?: 0}.")
         sb.appendLine("Completion: ${(PrayerSchedule.completion(from, to, logs, replaces) * 100).toInt()}%. Current full-day streak: ${PrayerSchedule.streak(to, db.prayerDao().getLogs(to.minusDays(400).toEpochDay(), to.toEpochDay()), replaces)} days.")
         perPrayer.forEach { (p, m) -> sb.appendLine("- ${p.label}: " + m.entries.joinToString(", ") { "${it.key}=${it.value}" }) }
         sb.appendLine()

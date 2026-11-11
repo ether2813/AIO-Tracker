@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Event
@@ -43,6 +45,8 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -73,13 +77,16 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -99,6 +106,7 @@ import com.aio.tracker.ui.components.EmptyState
 import com.aio.tracker.ui.components.LinearMeter
 import com.aio.tracker.ui.components.Pill
 import com.aio.tracker.ui.components.SheetTitle
+import com.aio.tracker.ui.components.contentColorOn
 import com.aio.tracker.ui.components.screenPadding
 import com.aio.tracker.ui.theme.AppTheme
 import com.aio.tracker.util.Dates
@@ -133,6 +141,22 @@ fun PlannerScreen(onOpenNote: (Long) -> Unit) {
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    fun offerUndo(message: String, undo: () -> Unit) {
+        scope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            val r = snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Short)
+            if (r == SnackbarResult.ActionPerformed) undo()
+        }
+    }
+    fun deleteTodo(t: TodoItem) {
+        vm.deleteTodo(t)
+        offerUndo("Task deleted") { vm.restoreTodo(t) }
+    }
+    fun deleteNote(n: Note) {
+        vm.deleteNote(n)
+        offerUndo("Note deleted") { vm.restoreNote(n) }
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
@@ -184,14 +208,7 @@ fun PlannerScreen(onOpenNote: (Long) -> Unit) {
                     onToggle = vm::toggle,
                     onOpen = { editing = it },
                     onQuickAdd = { vm.saveTodo(it) },
-                    onDelete = { t ->
-                        vm.deleteTodo(t)
-                        scope.launch {
-                            snackbar.currentSnackbarData?.dismiss()
-                            val r = snackbar.showSnackbar("Task deleted", actionLabel = "Undo", duration = SnackbarDuration.Short)
-                            if (r == SnackbarResult.ActionPerformed) vm.restoreTodo(t)
-                        }
-                    },
+                    onDelete = { deleteTodo(it) },
                 )
             } else {
                 NotesGrid(
@@ -199,6 +216,8 @@ fun PlannerScreen(onOpenNote: (Long) -> Unit) {
                     padding = inner,
                     onOpen = { onOpenNote(it.id) },
                     onNew = { onOpenNote(Routes.NEW_NOTE_ID) },
+                    onTogglePin = { vm.togglePin(it) },
+                    onDelete = { deleteNote(it) },
                 )
             }
         }
@@ -209,7 +228,7 @@ fun PlannerScreen(onOpenNote: (Long) -> Unit) {
             existing = editing,
             onDismiss = { creating = false; editing = null },
             onSave = { vm.saveTodo(it); creating = false; editing = null },
-            onDelete = { vm.deleteTodo(it); creating = false; editing = null },
+            onDelete = { deleteTodo(it); creating = false; editing = null },
         )
     }
     if (confirmClear) {
@@ -342,11 +361,16 @@ private fun TodoList(
 
 @Composable
 private fun SwipeableTodo(t: TodoItem, today: Long, onToggle: () -> Unit, onOpen: () -> Unit, onDelete: () -> Unit) {
+    // The swipe state is created once and keeps its first callback. Read the callbacks through
+    // rememberUpdatedState so a swipe always acts on the latest version of the task; otherwise swiping
+    // an edited or already toggled task would write back its stale copy.
+    val currentOnToggle by rememberUpdatedState(onToggle)
+    val currentOnDelete by rememberUpdatedState(onDelete)
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { v ->
             when (v) {
-                SwipeToDismissBoxValue.StartToEnd -> { onToggle(); false }
-                SwipeToDismissBoxValue.EndToStart -> { onDelete(); true }
+                SwipeToDismissBoxValue.StartToEnd -> { currentOnToggle(); false }
+                SwipeToDismissBoxValue.EndToStart -> { currentOnDelete(); true }
                 SwipeToDismissBoxValue.Settled -> false
             }
         },
@@ -367,8 +391,10 @@ private fun SwipeableTodo(t: TodoItem, today: Long, onToggle: () -> Unit, onOpen
                 Modifier.fillMaxSize().clip(MaterialTheme.shapes.large).background(color).padding(horizontal = 20.dp),
                 contentAlignment = if (dir == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart,
             ) {
-                if (dir == SwipeToDismissBoxValue.StartToEnd) Icon(Icons.Rounded.CheckCircle, "Complete", tint = Color.White)
-                if (dir == SwipeToDismissBoxValue.EndToStart) Icon(Icons.Rounded.Delete, "Delete", tint = Color.White)
+                if (dir == SwipeToDismissBoxValue.StartToEnd) {
+                    Icon(Icons.Rounded.CheckCircle, if (t.done) "Mark not done" else "Complete", tint = contentColorOn(AppTheme.ext.income))
+                }
+                if (dir == SwipeToDismissBoxValue.EndToStart) Icon(Icons.Rounded.Delete, "Delete", tint = MaterialTheme.colorScheme.onError)
             }
         },
     ) {
@@ -505,6 +531,8 @@ private fun NotesGrid(
     padding: PaddingValues,
     onOpen: (Note) -> Unit,
     onNew: () -> Unit,
+    onTogglePin: (Note) -> Unit,
+    onDelete: (Note) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val all = notes.orEmpty()
@@ -524,6 +552,11 @@ private fun NotesGrid(
                 onValueChange = { query = it },
                 placeholder = { Text("Search notes") },
                 leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) { Icon(Icons.Rounded.Close, "Clear search") }
+                    }
+                },
                 singleLine = true,
                 shape = MaterialTheme.shapes.large,
                 colors = OutlinedTextFieldDefaults.colors(),
@@ -545,22 +578,49 @@ private fun NotesGrid(
                 }
             }
         }
-        items(filtered, key = { it.id }) { n -> NoteCard(n, onClick = { onOpen(n) }) }
+        items(filtered, key = { it.id }) { n ->
+            NoteCard(n, onClick = { onOpen(n) }, onTogglePin = { onTogglePin(n) }, onDelete = { onDelete(n) })
+        }
     }
 }
 
+/** Tap to open; long-press for quick actions (pin / delete). */
 @Composable
-private fun NoteCard(n: Note, onClick: () -> Unit) {
+private fun NoteCard(n: Note, onClick: () -> Unit, onTogglePin: () -> Unit, onDelete: () -> Unit) {
     val bg = noteColor(n.color)
+    val shape = MaterialTheme.shapes.large
+    val haptics = LocalHapticFeedback.current
+    var menu by remember { mutableStateOf(false) }
+    Box {
+    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+        DropdownMenuItem(
+            text = { Text(if (n.pinned) "Unpin" else "Pin to top") },
+            leadingIcon = { Icon(Icons.Rounded.PushPin, null) },
+            onClick = { menu = false; onTogglePin() },
+        )
+        DropdownMenuItem(
+            text = { Text("Delete") },
+            leadingIcon = { Icon(Icons.Rounded.Delete, null) },
+            onClick = { menu = false; onDelete() },
+        )
+    }
     Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large,
+        shape = shape,
         color = bg,
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (n.color == 0) Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), MaterialTheme.shapes.large)
+                if (n.color == 0) Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
                 else Modifier,
+            )
+            .clip(shape)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClickLabel = "Note actions",
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    menu = true
+                },
             ),
     ) {
         Column(Modifier.padding(14.dp)) {
@@ -579,6 +639,7 @@ private fun NoteCard(n: Note, onClick: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             Text(Dates.dateTime(n.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
     }
 }
 
